@@ -1,0 +1,450 @@
+import http
+import json
+import strings
+import co.mutex
+import time
+
+// MIME types that are commonly used
+string MIME_TEXT_XML = "text/xml"
+string MIME_TEXT_HTML = "text/html"
+string MIME_TEXT_PLAIN = "text/plain"
+string MIME_TEXT_JAVASCRIPT = "text/javascript"
+string MIME_APPLICATION_XML = "application/xml"
+string MIME_APPLICATION_JSON = "application/json"
+string MIME_APPLICATION_JAVASCRIPT = "application/javascript"
+string MIME_APPLICATION_FORM = "application/x-www-form-urlencoded"
+string MIME_OCTET_STREAM = "application/octet-stream"
+string MIME_MULTIPART_FORM = "multipart/form-data"
+
+string MIME_TEXT_XML_CHARSET_UTF8 = "text/xml; charset=utf-8"
+string MIME_TEXT_HTML_CHARSET_UTF8 = "text/html; charset=utf-8"
+string MIME_TEXT_PLAIN_CHARSET_UTF8 = "text/plain; charset=utf-8"
+string MIME_TEXT_JAVASCRIPT_CHARSET_UTF8 = "text/javascript; charset=utf-8"
+string MIME_APPLICATION_XML_CHARSET_UTF8 = "application/xml; charset=utf-8"
+string MIME_APPLICATION_JSON_CHARSET_UTF8 = "application/json; charset=utf-8"
+string MIME_APPLICATION_JAVASCRIPT_CHARSET_UTF8 = "application/javascript; charset=utf-8"
+
+// HTTP status codes
+int STATUS_CONTINUE = 100
+int STATUS_SWITCHING_PROTOCOLS = 101
+int STATUS_PROCESSING = 102
+int STATUS_EARLY_HINTS = 103
+
+int STATUS_OK = 200
+int STATUS_CREATED = 201
+int STATUS_ACCEPTED = 202
+int STATUS_NON_AUTHORITATIVE_INFORMATION = 203
+int STATUS_NO_CONTENT = 204
+int STATUS_RESET_CONTENT = 205
+int STATUS_PARTIAL_CONTENT = 206
+int STATUS_MULTI_STATUS = 207
+int STATUS_ALREADY_REPORTED = 208
+int STATUS_IM_USED = 226
+
+int STATUS_MULTIPLE_CHOICES = 300
+int STATUS_MOVED_PERMANENTLY = 301
+int STATUS_FOUND = 302
+int STATUS_SEE_OTHER = 303
+int STATUS_NOT_MODIFIED = 304
+int STATUS_USE_PROXY = 305
+int STATUS_SWITCH_PROXY = 306
+int STATUS_TEMPORARY_REDIRECT = 307
+int STATUS_PERMANENT_REDIRECT = 308
+
+int STATUS_BAD_REQUEST = 400
+int STATUS_UNAUTHORIZED = 401
+int STATUS_PAYMENT_REQUIRED = 402
+int STATUS_FORBIDDEN = 403
+int STATUS_NOT_FOUND = 404
+int STATUS_METHOD_NOT_ALLOWED = 405
+int STATUS_NOT_ACCEPTABLE = 406
+int STATUS_PROXY_AUTH_REQUIRED = 407
+int STATUS_REQUEST_TIMEOUT = 408
+int STATUS_CONFLICT = 409
+int STATUS_GONE = 410
+int STATUS_LENGTH_REQUIRED = 411
+int STATUS_PRECONDITION_FAILED = 412
+int STATUS_REQUEST_ENTITY_TOO_LARGE = 413
+int STATUS_REQUEST_URI_TOO_LONG = 414
+int STATUS_UNSUPPORTED_MEDIA_TYPE = 415
+int STATUS_REQUESTED_RANGE_NOT_SATISFIABLE = 416
+int STATUS_EXPECTATION_FAILED = 417
+int STATUS_TEAPOT = 418
+int STATUS_MISDIRECTED_REQUEST = 421
+int STATUS_UNPROCESSABLE_ENTITY = 422
+int STATUS_LOCKED = 423
+int STATUS_FAILED_DEPENDENCY = 424
+int STATUS_TOO_EARLY = 425
+int STATUS_UPGRADE_REQUIRED = 426
+int STATUS_PRECONDITION_REQUIRED = 428
+int STATUS_TOO_MANY_REQUESTS = 429
+int STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE = 431
+int STATUS_UNAVAILABLE_FOR_LEGAL_REASONS = 451
+
+int STATUS_INTERNAL_SERVER_ERROR = 500
+int STATUS_NOT_IMPLEMENTED = 501
+int STATUS_BAD_GATEWAY = 502
+int STATUS_SERVICE_UNAVAILABLE = 503
+int STATUS_GATEWAY_TIMEOUT = 504
+int STATUS_HTTP_VERSION_NOT_SUPPORTED = 505
+int STATUS_VARIANT_ALSO_NEGOTIATES = 506
+int STATUS_INSUFFICIENT_STORAGE = 507
+int STATUS_LOOP_DETECTED = 508
+int STATUS_NOT_EXTENDED = 510
+int STATUS_NETWORK_AUTHENTICATION_REQUIRED = 511
+
+const METHOD_GET = "GET"
+const METHOD_POST = "POST"
+const METHOD_PUT = "PUT"
+const METHOD_DELETE = "DELETE"
+const METHOD_PATCH = "PATCH"
+const METHOD_HEAD = "HEAD"
+const METHOD_OPTIONS = "OPTIONS"
+const METHOD_USE = "USE"
+
+type ctx_t = struct {
+    http.request_t req
+    ptr<http.response_t> res
+    {string:string} params
+    {string:any} locals
+    bool response_sent
+    [fn(ptr<ctx_t>):void!] handlers
+    int handler_index
+}
+
+type route_t = struct {
+    string method
+    string path
+    [fn(ptr<ctx_t>):void!] handlers
+}
+
+type api_t = struct {
+    [route_t] routes
+    bool debug_mode
+    ptr<http.server_t> server
+    [fn(ptr<ctx_t>):void!] global_middlewares
+}
+
+type group_t = struct {
+    string prefix
+    ptr<api_t> app
+    [fn(ptr<ctx_t>):void!] middlewares
+    ptr<group_t>? parent
+}
+
+fn new():ptr<api_t> {
+    var app = new api_t(server = http.server())
+    app.server.all('/', fn(http.request_t req, ptr<http.response_t> res):void! {
+        var ctx = new ctx_t(
+            req,
+            res,
+            params = {},
+            locals = {},
+            response_sent = false,
+            handlers = [],
+            handler_index = -1,
+        )
+
+        app.handle_callback(ctx)
+    })
+    return app
+}
+
+fn api_t.group(string prefix, ...[fn(ptr<ctx_t>):void!] middlewares):ptr<group_t> {
+    var group = new group_t(
+        prefix = self.normalize_prefix(prefix),
+        app = self,
+        middlewares = middlewares,
+        parent = null,
+    )
+    return group
+}
+
+fn api_t.normalize_prefix(string prefix):string {
+    if prefix == "" {
+        return ""
+    }
+    
+    var normalized = prefix
+    if !normalized.starts_with('/') {
+        normalized = '/' + normalized
+    }
+    if normalized.ends_with('/') && normalized.len() > 1 {
+        normalized = normalized[0..normalized.len()-1]
+    }
+    return normalized
+}
+
+fn ctx_t.json(int status, any data):void! {
+    if self.response_sent {
+        throw errorf("response already sent")
+    }
+    
+    var str = json.serialize(data)
+    self.res.content_type = MIME_APPLICATION_JSON
+    self.res.body = str
+    self.res.status = status
+    self.res.length = str.len()
+    self.response_sent = true
+}
+
+fn ctx_t.text(int status, string data):void! {
+    if self.response_sent {
+        throw errorf("response already sent")
+    }
+    
+    self.res.status = status
+    self.res.content_type = MIME_TEXT_PLAIN
+    self.res.body = data
+    self.res.length = data.len()
+    self.response_sent = true
+}
+
+fn ctx_t.status(int code):ptr<ctx_t> {
+    self.res.status = code
+    return self
+}
+
+fn ctx_t.param(string key):string {
+    return self.params[key] catch e {
+        return ""
+    }
+}
+
+fn ctx_t.set(string key, any value) {
+    self.locals[key] = value
+}
+
+fn ctx_t.get(string key):any {
+    return self.locals[key] catch e {
+        return null
+    }
+}
+
+fn ctx_t.next():void! {
+    self.handler_index += 1
+    if self.handler_index < self.handlers.len() {
+        var handler = self.handlers[self.handler_index]
+        handler(self)
+    }
+}
+
+fn parse_path(string path):([string], bool) {
+    var segments = path.split('/')
+    var has_params = false
+    
+    for segment in segments {
+        if segment.starts_with(':') {
+            has_params = true
+        }
+    }
+    
+    return (segments, has_params)
+}
+
+fn api_t.get(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("GET", path, handlers)
+}
+
+fn api_t.post(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("POST", path, handlers)
+}
+
+fn api_t.put(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("PUT", path, handlers)
+}
+
+fn api_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("DELETE", path, handlers)
+}
+
+fn api_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("PATCH", path, handlers)
+}
+
+fn api_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
+    var (segments, has_params) = parse_path(path)
+    
+    [fn(ptr<ctx_t>):void!] all_handlers = []
+    all_handlers.append(self.global_middlewares)
+    all_handlers.append(handlers)
+
+    var route = route_t{
+        method = method,
+        path = path,
+        handlers = all_handlers,
+    }
+    
+    self.routes.push(route)
+}
+
+fn api_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.global_middlewares.append(handlers)
+}
+
+fn api_t.handle_callback(ptr<ctx_t> ctx):void! {
+    var (route, params) = self.match_route(ctx.req) catch e {
+        ctx.res.status = STATUS_NOT_FOUND
+        ctx.res.send('Not Found')
+        ctx.response_sent = true
+        return
+    }
+    
+    ctx.res.status = STATUS_OK
+    ctx.handlers = route.handlers
+    ctx.params = params
+    
+    ctx.next() catch e {
+        ctx.res.status = STATUS_INTERNAL_SERVER_ERROR
+        ctx.res.send('Internal Server Error: ' + e.msg())
+        ctx.response_sent = true
+    }
+}
+
+fn api_t.match_route(http.request_t req):(route_t, {string:string})! {
+    for route in self.routes {
+        if route.method == match_http_method(req.method) {
+            var (matched, params) = self.match_path(route.path, req.path)
+            if matched {
+                return (route, params)
+            }
+        }
+    }
+    
+    throw errorf('no matching route')
+}
+
+fn match_http_method(u8 method):string {
+    return match method {
+        http.HTTP_GET -> METHOD_GET
+        http.HTTP_POST -> METHOD_POST
+        http.HTTP_PUT -> METHOD_PUT
+        http.HTTP_DELETE -> METHOD_DELETE
+        http.HTTP_HEAD -> METHOD_HEAD
+        http.HTTP_OPTIONS -> METHOD_OPTIONS
+        _ -> ""
+    }
+}
+
+fn api_t.match_path(string route_path, string request_path):(bool, {string:string}) {
+    var route_segments = route_path.split('/')
+    var request_segments = request_path.split('/')
+    
+    {string:string} params = {}
+    if route_segments.len() != request_segments.len() {
+        return (false, params)
+    }
+    
+    
+    for i, route_seg  in route_segments {
+        var request_seg = request_segments[i]
+        if route_seg.starts_with(':') {
+            var param_name = route_seg[1..]
+            params[param_name] = request_seg
+        } else if route_seg != request_seg {
+            return (false, params)
+        }
+    }
+    
+    return (true, params)
+}
+
+fn group_t.get(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("GET", path, handlers)
+}
+
+fn group_t.post(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("POST", path, handlers)
+}
+
+fn group_t.put(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("PUT", path, handlers)
+}
+
+fn group_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("DELETE", path, handlers)
+}
+
+fn group_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("PATCH", path, handlers)
+}
+
+fn group_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
+    var full_path = self.prefix + path
+    
+    [fn(ptr<ctx_t>):void!] all_handlers = []
+    self.collect_parent_middlewares(all_handlers)
+    
+    all_handlers.append(self.middlewares)
+    
+    all_handlers.append(handlers)
+    
+    self.app.add_route(method, full_path, all_handlers)
+}
+
+fn group_t.collect_parent_middlewares([fn(ptr<ctx_t>):void!] middlewares):void {
+    if !(self.parent is null) {
+        var parent = self.parent as ptr<group_t>
+        parent.collect_parent_middlewares(middlewares)
+        middlewares.append(parent.middlewares)
+    }
+}
+
+// 为 group_t 添加中间件方法
+fn group_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.middlewares.append(handlers)
+}
+
+fn api_t.listen(int port):void! {
+    println("Server listening on port", port)
+    self.server.listen(port)
+}
+
+fn main():void! {
+    var app = new()
+    
+    app.use(fn(ptr<ctx_t> c):void! {
+        c.set('auth_id', 12)
+        println('in global ->', c.req.method, c.req.path)
+        c.next()
+        println('<- out global')
+    })
+
+    app.get('/test/:id', 
+        fn(ptr<ctx_t> c):void! {
+            println('in test middleware ->', c.req.method, c.req.path)
+            c.next()
+            println('<- out test middleware')
+        },
+        fn(ptr<ctx_t> c):void! {
+            println(c.get('auth_id'), c.get('auth_list') is null, c.param('id'))
+            c.text(200, 'hello world')
+        },
+    )
+
+    var v1 = app.group('/api/v1', fn(ptr<ctx_t> c):void! {
+        println('in v1 middleware ->', c.req.method, c.req.path)
+        c.next()
+        println('<- out v1 middleware')
+    })
+
+    v1.get('/:user', fn(ptr<ctx_t> c):void! {
+        c.json(200, {
+            'message': 'ok',
+            'data': {
+                'id': 1,
+                'username': 'xiaoming',
+                'param': c.param('user'),
+                'actived': true,
+            },
+        })
+    })
+
+    v1.use(fn(ptr<ctx_t> c):void! {
+        println('after v1 middleware ->', c.req.method, c.req.path)
+        c.next()
+        println('<- after v1 middleware')
+    })
+
+    app.listen(8888)
+}

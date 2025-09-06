@@ -1,0 +1,9 @@
+type document = struct{
+    int id
+    int created_at
+    int updated_t
+    string content
+    [string] images 
+    string video
+    {string:any} layout
+}

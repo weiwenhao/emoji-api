@@ -1,0 +1,14 @@
+import emoji.services.api
+import emoji.controllers.document
+import emoji.controllers.auth
+import http
+
+fn register(ptr<api.api_t> app) {
+    app.get('/ok', fn(ptr<api.ctx_t> ctx):void! {
+        ctx.text(200, 'ok')
+    })
+
+    var v1 = app.group('/api/v1')
+    v1.post('/login', auth.login)
+    v1.post('/register', auth.register)
+}

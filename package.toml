@@ -1,0 +1,10 @@
+name = "emoji"
+version = "0.1.0"
+authors = ["weiwenhao <wwhacker@qq.com>"]
+license = "MIT"
+type = "lib"
+
+[links]
+
+[dependencies]
+db = { type = "git", version = "v0.10.0", url = "github.com/weiwenhao/dbdriver" }

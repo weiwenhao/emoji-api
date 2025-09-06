@@ -1,0 +1,70 @@
+import json
+import fmt
+import emoji.services.api
+import emoji.models.user
+import emoji.services.jwt
+
+
+fn register(ptr<api.ctx_t> ctx):void! {
+    type register_t = struct{
+        string nickname
+        string email
+        string password
+    }
+    
+    var str = ctx.req.body
+    var body = json.deserialize<register_t>(str) catch e {
+        ctx.json(400, {'error': 'invalid params'})
+        return
+    }
+
+    // valid
+    if body.nickname == '' || body.email == '' || body.password == '' {
+        ctx.json(400, {
+            'error': 'invalid params',
+        })
+        return
+    }
+
+    // check exists
+    if user.email_exists(body.email) {
+        ctx.json(400, {
+            'error': 'email already exists',
+        })
+        return
+    }
+
+    var id = user.create(body.nickname, body.email, body.password)
+    ctx.json(200, {
+        'id': id,
+    })
+}
+
+
+fn login(ptr<api.ctx_t> ctx):void! {
+    type login_t = struct{
+        string email
+        string password
+    }
+    
+    var str = ctx.req.body
+    var body = json.deserialize<login_t>(str) catch e {
+        ctx.json(400, {'error': 'invalid params'})
+        return
+    }
+
+    if body.email == '' || body.password == '' {
+        ctx.json(400, {'error': 'invalid params'})
+        return
+    }
+
+    var user_id = user.login(body.email, body.password) catch e {
+        ctx.json(401, {'error': e.msg()})
+        return
+    }
+
+    var token = jwt.generate(fmt.sprintf('%d', user_id), {}, 0)
+    ctx.json(200, {
+        'token': token,
+    })
+}

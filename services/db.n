@@ -1,0 +1,274 @@
+import co.mutex
+import co
+import db.mysql
+import db.result as db_result
+import net.url
+import strings
+import reflect
+import json
+import unsafe
+import runtime
+import time
+
+type pool_config_t = struct {
+    int min_connections = 5
+    int max_connections = 20
+    int acquire_timeout = 30000 // 30s
+    int idle_timeout = 600000
+    bool test_on_borrow = true
+}
+
+type pooled_conn_t = struct {
+    ptr<mysql.conn_t> conn
+    int created_at
+    int last_used_at
+    bool in_use
+    ptr<db_t> db
+}
+
+type db_t = struct{
+    string raw_url
+    url.url_t url
+    string host /// xxxxx:xxx
+    string username
+    string password
+    string database
+
+    var pool_config = pool_config_t{}
+    [ptr<pooled_conn_t>] idle_connections
+    [ptr<pooled_conn_t>] active_connections
+    mutex.mutex_t pool_mutex
+    bool pool_initialized
+}
+
+ptr<db_t>? global_db = null
+
+fn init(string raw_url):ptr<db_t>! {
+    // parser url
+    var u = url.parse(raw_url)
+
+    // e.g. root:root@127.0.0.1:3306
+    var temps = u.authority.split('@')
+    if temps.len() != 2 {
+        throw errorf("invalid url")
+    }
+
+    var auth_pair = temps[0] // root:root
+    var host = temps[1] // 127.0.0.1:3306
+
+    var auths = auth_pair.split(':')
+    if auths.len() != 2 {
+        throw errorf("invalid url")
+    }
+
+    var database = u.path.ltrim(['/']) 
+
+    var result = new db_t(raw_url, url = u, host, username = auths[0], password = auths[1], database)
+
+    // 初始化连接池
+    result.init_pool()
+    
+    global_db = result 
+    return result
+}
+
+fn conn():ptr<pooled_conn_t>! {
+    if global_db is ptr<db_t> {
+        return global_db.conn()
+    }
+
+    throw errorf('db not initialized')
+}
+
+fn db_t.init_pool()! {
+    self.pool_initialized = true
+    
+    // 创建最小连接数
+    for int i = 0; i < self.pool_config.min_connections; i += 1 {
+        var conn = self.create_connection()
+        self.idle_connections.push(conn)
+    }
+}
+
+fn db_t.create_connection():ptr<pooled_conn_t>! {
+    var mysql_conn = mysql.connect(self.host, self.username, self.password, self.database)
+    var now = time.unix()
+    
+    return new pooled_conn_t(
+        conn = mysql_conn,
+        created_at = now,
+        last_used_at = now,
+        in_use = false,
+        db = self,
+    )
+}
+
+fn db_t.conn():ptr<pooled_conn_t>! {
+    if !self.pool_initialized {
+        throw errorf("connection pool not initialized")
+    }
+    
+    var start_time = time.unix()
+    var timeout_ms = self.pool_config.acquire_timeout
+    
+    for true {
+        self.pool_mutex.lock()
+        
+        var idle_len = self.idle_connections.len()
+        if idle_len > 0 {
+            var conn = self.idle_connections[idle_len -1]
+            self.idle_connections = self.idle_connections[0..idle_len -1]
+            conn.in_use = true
+            conn.last_used_at = time.unix()
+            self.active_connections.push(conn)
+            self.pool_mutex.unlock()
+            return conn
+        }
+        
+        var total_connections = self.idle_connections.len() + self.active_connections.len()
+        if total_connections < self.pool_config.max_connections {
+            var conn = self.create_connection()
+            conn.in_use = true
+            conn.last_used_at = time.unix()
+            self.active_connections.push(conn)
+            self.pool_mutex.unlock()
+            return conn
+        }
+        
+        self.pool_mutex.unlock()
+        
+        var elapsed = (time.unix() - start_time) * 1000 // 转换为毫秒
+        if elapsed >= timeout_ms {
+            throw errorf("acquire connection timeout after %d ms, pool exhausted", timeout_ms)
+        }
+        
+        co.sleep(10)
+    }
+
+    throw errorf('unreacheable')
+}
+
+fn pooled_conn_t.query(string sql, ...[any] args):db_result.query_t! {
+    var stmt = self.conn.prepare(sql)
+    var result = stmt.query(...args)
+
+    // 查询完成后释放连接
+    self.release()
+
+    return result
+}
+
+fn pooled_conn_t.release() {
+    if global_db is ptr<db_t> {
+        global_db.release_connection(self)
+    }
+}
+
+fn db_t.release_connection(ptr<pooled_conn_t> conn) {
+    self.pool_mutex.lock()
+
+    for int i = 0; i < self.active_connections.len(); i+=1 {
+        if self.active_connections[i] == conn {
+            var active_connections = self.active_connections[0..i]
+            active_connections.append(self.active_connections[i+1..])
+            self.active_connections = active_connections
+
+            break
+        }
+    }
+    
+    conn.in_use = false
+    conn.last_used_at = time.unix()
+    
+    var now = time.unix()
+    if now - conn.last_used_at > self.pool_config.idle_timeout {
+        conn.conn.close()
+        self.pool_mutex.unlock()
+        return
+    }
+
+    self.idle_connections.push(conn)
+    self.pool_mutex.unlock()
+}
+
+fn pooled_conn_t.execute(string sql, ...[any] args):db_result.execute_t! {
+    var stmt = self.conn.prepare(sql)
+    var result = stmt.execute(...args)
+    
+    // 执行完成后释放连接
+    self.release()
+    
+    return result
+}
+
+fn db_t.cleanup_idle_connections() {
+    self.pool_mutex.lock()
+    
+    var now = time.unix()
+    var i = 0
+    
+    for i < self.idle_connections.len() {
+        var conn = self.idle_connections[i]
+        if now - conn.last_used_at > self.pool_config.idle_timeout {
+            conn.conn.close()
+
+            var before = self.idle_connections[0..i]
+            var after = self.idle_connections[i+1..]
+            before.append(after)
+            self.idle_connections = before
+        } else {
+            i+=1
+        }
+    }
+    
+    // 确保至少保持最小连接数
+    for self.idle_connections.len() < self.pool_config.min_connections {
+        try {
+            var conn = self.create_connection()
+            self.idle_connections.push(conn)
+        } catch e {
+            break // 如果创建连接失败，停止尝试
+        }
+    }
+
+    self.pool_mutex.unlock()
+}
+
+fn db_t.close_all_connections() {
+    self.pool_mutex.lock()
+    
+    // 关闭所有空闲连接
+    for conn in self.idle_connections {
+        conn.conn.close()
+    }
+    self.idle_connections = []
+    
+    // 关闭所有活跃连接
+    for conn in self.active_connections {
+        conn.conn.close()
+    }
+    self.active_connections = []
+
+    self.pool_mutex.unlock()
+}
+
+fn main():void! {
+    var db = init('mysql://root:root@127.0.0.1:3306/emoji')
+
+    var result = db.conn().query('select * from users')
+    type user_t = struct{
+        int id
+        string nickname 
+        string? email
+    }
+
+    var list = db_result.deserialize<user_t>(result)
+    for u in list {
+        println(u.id, u.nickname, u.email)
+    }
+
+    var list3 = db_result.deserialize<{string:any}>(result)
+    for u in list3 {
+        println(u['id'], u['nickname'], u['email'])
+    }
+}

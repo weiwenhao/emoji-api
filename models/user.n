@@ -1,0 +1,45 @@
+import emoji.services.db
+import time
+import crypto.bcrypt
+
+type document = struct{
+    int id
+    int created_at
+    int updated_t
+    string avatar
+    string nickname
+    string email
+    string phone
+    string password
+    string signature
+}
+
+fn email_exists(string email):bool! {
+    var result = db.conn().query('select count(*) from users where email=?', email)
+    var value = (result.rows[0][0] as string).to_int()
+    return value > 0
+}
+
+fn create(string nickname, string email, string password):int! {
+    var hashed_password = bcrypt.hash(password as [u8], bcrypt.DEFAULT_COST) as string
+
+    var result = db.conn().execute('insert into users (nickname, email, password, created_at, updated_at) values (?, ?, ?, ?, ?)', 
+        nickname, email, hashed_password, time.unix(), time.unix())
+    return result.last_insert_id
+}
+
+fn login(string email, string password):int! {
+    var result = db.conn().query('select id, password from users where email=?', email)
+    if result.rows.len() == 0 {
+        throw errorf('email not register')
+    }
+
+    var id = (result.rows[0][0] as string).to_int()
+    var hashed_password = (result.rows[0][1] as string)
+
+    bcrypt.verify(hashed_password as [u8], password as [u8]) catch e {
+        throw errorf('email or password error' + e.msg())
+    }
+
+    return id
+}

@@ -1,0 +1,35 @@
+import os
+import fs
+import syscall
+import json
+
+var cache = config_t{}
+var cache_load = false
+
+type config_t = struct{
+    string db_host
+    string db_database
+    string db_username
+    string db_password
+}
+
+fn load(string path):config_t! {
+    if cache_load {
+        return cache
+    }
+
+    var f = fs.open(path, syscall.O_RDONLY, 0644)
+    var raw = f.content()
+    f.close()
+
+    cache = json.deserialize<config_t>(raw)
+    cache_load = true
+
+    return cache
+}
+
+
+fn main():void! {
+    var c =  load('./config.json')
+    println(c.db_host, c.db_database, c.db_username, c.db_password)
+}

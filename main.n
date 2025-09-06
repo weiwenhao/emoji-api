@@ -1,0 +1,20 @@
+import emoji.services.api
+import emoji.services.config
+import emoji.services.db
+import emoji.router
+import fmt
+
+fn main() {
+    // read config
+    var c = config.load('./config.json')
+
+    // init db
+    db.init(fmt.sprintf('mysql://%s:%s@%s/%s', c.db_username, c.db_password, c.db_host, c.db_database))
+
+    // init api
+    var app = api.new()
+    router.register(app)   
+
+    // run server
+    app.listen(8888)
+}

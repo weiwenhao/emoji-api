@@ -1,0 +1,11 @@
+.DS_Store
+.env
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+main
+emoji
+config.json

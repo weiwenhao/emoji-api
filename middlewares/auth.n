@@ -1,0 +1,5 @@
+import emoji.services.api
+
+fn auth(ptr<api.ctx_t> c):void! {
+    c.next()
+}
