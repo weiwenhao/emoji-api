@@ -11,6 +11,13 @@ type config_t = struct{
     string db_database
     string db_username
     string db_password
+
+    string mail_host
+    int mail_port
+    string mail_username
+    string mail_password
+
+    string jwt_secret
 }
 
 fn load(string path):config_t! {

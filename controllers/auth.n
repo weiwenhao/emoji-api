@@ -3,6 +3,7 @@ import fmt
 import emoji.services.api
 import emoji.models.user
 import emoji.services.jwt
+import emoji.services.mail
 
 
 fn register(ptr<api.ctx_t> ctx):void! {
@@ -10,36 +11,51 @@ fn register(ptr<api.ctx_t> ctx):void! {
         string nickname
         string email
         string password
+        string code
     }
     
     var str = ctx.req.body
     var body = json.deserialize<register_t>(str) catch e {
-        ctx.json(400, {'error': 'invalid params'})
-        return
+        return ctx.json(400, {'error': 'invalid params'})
     }
 
     // valid
-    if body.nickname == '' || body.email == '' || body.password == '' {
-        ctx.json(400, {
-            'error': 'invalid params',
-        })
-        return
+    if body.nickname == '' || body.email == '' || body.password == '' || body.code == '' {
+        return ctx.json(400, {'error': 'invalid params'})
+    }
+
+    if !user.captcha_verify(body.email, body.code) {
+        return ctx.json(400, {'error': 'invalid captcha'})
     }
 
     // check exists
     if user.email_exists(body.email) {
-        ctx.json(400, {
-            'error': 'email already exists',
-        })
-        return
+        return ctx.json(400, {'error': 'email already exists'})
     }
 
     var id = user.create(body.nickname, body.email, body.password)
-    ctx.json(200, {
-        'id': id,
-    })
+    return ctx.json(200, {'id': id})
 }
 
+
+fn captcha(ptr<api.ctx_t> ctx):void! {
+    type captcha_t = struct{
+        string email
+    }
+
+    var body = json.deserialize<captcha_t>(ctx.req.body)
+    if user.email_exists(body.email) {
+        return ctx.json(400, {'error': 'email already exists'})
+    }
+
+    var code = user.captcha(body.email)
+    var subject = "Emoji App register captcha"
+    mail.send(subject, fmt.sprintf('Your captcha is %s', code), [body.email]) catch e {
+        return ctx.json(500, {'error': e.msg()})
+    }
+
+    return ctx.json(200, {'message': 'captcha sent'})
+}
 
 fn login(ptr<api.ctx_t> ctx):void! {
     type login_t = struct{
@@ -49,22 +65,17 @@ fn login(ptr<api.ctx_t> ctx):void! {
     
     var str = ctx.req.body
     var body = json.deserialize<login_t>(str) catch e {
-        ctx.json(400, {'error': 'invalid params'})
-        return
+        return ctx.json(400, {'error': 'invalid params'})
     }
 
     if body.email == '' || body.password == '' {
-        ctx.json(400, {'error': 'invalid params'})
-        return
+        return ctx.json(400, {'error': 'invalid params'})
     }
 
     var user_id = user.login(body.email, body.password) catch e {
-        ctx.json(401, {'error': e.msg()})
-        return
+        return ctx.json(401, {'error': e.msg()})
     }
 
     var token = jwt.generate(fmt.sprintf('%d', user_id), {}, 0)
-    ctx.json(200, {
-        'token': token,
-    })
+    return ctx.json(200, {'token': token})
 }

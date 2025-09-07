@@ -1,6 +1,7 @@
 import emoji.services.db
 import time
 import crypto.bcrypt
+import emoji.utils
 
 type document = struct{
     int id
@@ -12,6 +13,22 @@ type document = struct{
     string phone
     string password
     string signature
+}
+
+// email:(code,expired_at)
+{string:(string,int)} captch_cache = {}
+
+fn captcha(string email):string!{
+    string code = utils.gen_captcha()
+    captch_cache[email] = (code, time.unix() + 300)
+    return code
+}
+
+fn captcha_verify(string email, string code):bool {
+    var (cache_code, expired_at) = captch_cache[email] catch e {
+        return false
+    }
+    return expired_at > time.unix() && code == cache_code
 }
 
 fn email_exists(string email):bool! {
@@ -38,7 +55,7 @@ fn login(string email, string password):int! {
     var hashed_password = (result.rows[0][1] as string)
 
     bcrypt.verify(hashed_password as [u8], password as [u8]) catch e {
-        throw errorf('email or password error' + e.msg())
+        throw errorf('email or password error')
     }
 
     return id

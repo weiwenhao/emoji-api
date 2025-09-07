@@ -1,0 +1,13 @@
+{
+    "db_host": "127.0.0.1:3306",
+    "db_database": "emoji",
+    "db_username": "username",
+    "db_password": "password",
+
+    "mail_host": "smtp.163.com",
+    "mail_port": 465,
+    "mail_username": "username@163.com",
+    "mail_password": "password",
+
+    "jwt_secret": "jwt.secret"
+}

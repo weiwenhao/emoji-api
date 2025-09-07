@@ -1,0 +1,387 @@
+import net.tls
+import net.dns
+import libc
+import strings
+import base64
+import time
+import fmt
+import emoji.services.config
+
+// SMTP response code constants
+const SMTP_READY = 220
+const SMTP_OK = 250
+const SMTP_AUTH_SUCCESS = 235
+const SMTP_AUTH_CONTINUE = 334
+const SMTP_START_MAIL_INPUT = 354
+
+// SMTP configuration structure
+type config_t = struct {
+    string host     // SMTP server address:port
+    int port
+    string username     // Username
+    string password     // Password
+    string helo_domain  // HELO/EHLO domain
+}
+
+// Mail structure (plain text)
+type mail_t = struct {
+    string from         // Sender
+    [string] to         // Recipient list
+    [string] cc         // CC list
+    [string] bcc        // BCC list
+    string subject      // Subject
+    string body         // Mail body (plain text)
+    {string:string} headers    // Custom headers
+}
+
+// SMTP response structure
+type smtp_response_t = struct {
+    int code
+    string message
+}
+
+// SMTP client structure
+type client_t = struct {
+    config_t config
+    ptr<tls.conn_t> conn
+    bool connected
+    bool authenticated
+    [string] server_extensions
+}
+
+// Create new SMTP client
+fn client_new(config_t config):ptr<client_t>! {
+    var ips = dns.lookup(config.host)
+    if ips.len() == 0 {
+        throw errorf("no such host")
+    }
+
+    var conn = tls.connect(fmt.sprintf('%s:%d', ips[0], config.port))
+    var c = new client_t(
+        config = config,
+        conn = conn,
+        authenticated = false,
+        server_extensions = [],
+    )
+
+     // Read server welcome message
+    var response = c.read_response()
+    if response.code != SMTP_READY {
+        throw errorf("SMTP server not ready: %d %s", response.code, response.message)
+    }
+
+    // Send EHLO command
+    c.send_ehlo()
+
+    // Perform authentication
+    if config.username != "" && config.password != "" {
+        c.authenticate()
+    }
+
+    return c
+}
+
+// Send EHLO command
+fn client_t.send_ehlo():void! {
+    var domain = self.config.helo_domain
+    if domain == "" {
+        domain = "localhost"
+    }
+
+    var command = fmt.sprintf("EHLO %s\r\n", domain)
+    self.send_command(command)
+
+    var response = self.read_response()
+    if response.code != SMTP_OK {
+        throw errorf("EHLO failed: %d %s", response.code, response.message)
+    }
+
+    // Parse server extensions
+    self.parse_extensions(response.message)
+}
+
+// Parse server extensions
+fn client_t.parse_extensions(string message):void {
+    var lines = message.split("\n")
+    for line in lines {
+        var trimmed = line.trim([' '])
+        if trimmed != "" && !trimmed.starts_with("250") {
+            self.server_extensions.push(trimmed)
+        }
+    }
+}
+
+// Check if server supports an extension
+fn client_t.has_extension(string ext):bool {
+    for extension in self.server_extensions {
+        if extension.starts_with(ext) {
+            return true
+        }
+    }
+    return false
+}
+
+// Authentication
+fn client_t.authenticate():void! {
+    if !self.has_extension("AUTH") {
+        throw errorf("Server does not support authentication")
+    }
+
+    // Use AUTH LOGIN authentication method
+    self.send_command("AUTH LOGIN\r\n")
+    var response = self.read_response()
+    if response.code != SMTP_AUTH_CONTINUE {
+        throw errorf("AUTH LOGIN failed: %d %s", response.code, response.message)
+    }
+
+    // Send username (Base64 encoded)
+    var username_b64 = base64.encode(self.config.username as [u8]) as string
+    self.send_command(username_b64 + "\r\n")
+    response = self.read_response()
+    if response.code != SMTP_AUTH_CONTINUE {
+        throw errorf("Username authentication failed: %d %s", response.code, response.message)
+    }
+
+    // Send password (Base64 encoded)
+    var password_b64 = base64.encode(self.config.password as [u8]) as string
+    self.send_command(password_b64 + "\r\n")
+    response = self.read_response()
+    if response.code != SMTP_AUTH_SUCCESS {
+        throw errorf("Password authentication failed: %d %s", response.code, response.message)
+    }
+
+    self.authenticated = true
+}
+
+// Send mail
+fn client_t.send(mail_t mail):void! {
+    // Validate mail data
+    self.validate_mail(mail)
+
+    // Send MAIL FROM command
+    var mail_from = fmt.sprintf("MAIL FROM:<%s>\r\n", mail.from)
+    self.send_command(mail_from)
+    var response = self.read_response()
+    if response.code != SMTP_OK {
+        throw errorf("MAIL FROM failed: %d %s", response.code, response.message)
+    }
+
+    // Send RCPT TO command to all recipients
+    var all_recipients = mail.to
+    all_recipients.append(mail.cc)
+    all_recipients.append(mail.bcc)
+
+    for recipient in all_recipients {
+        if recipient != "" {
+            var rcpt_to = fmt.sprintf("RCPT TO:<%s>\r\n", recipient)
+            self.send_command(rcpt_to)
+            response = self.read_response()
+            if response.code != SMTP_OK {
+                throw errorf("RCPT TO failed for %s: %d %s", recipient, response.code, response.message)
+            }
+        }
+    }
+
+    // Send DATA command
+    self.send_command("DATA\r\n")
+    response = self.read_response()
+    if response.code != SMTP_START_MAIL_INPUT {
+        throw errorf("DATA command failed: %d %s", response.code, response.message)
+    }
+
+    // Build and send mail content
+    var mail_content = self.build_mail_content(mail)
+    self.send_command(mail_content)
+    self.send_command("\r\n.\r\n") // Mail end marker
+
+    response = self.read_response()
+    if response.code != SMTP_OK {
+        throw errorf("Mail sending failed: %d %s", response.code, response.message)
+    }
+}
+
+// Validate mail data
+fn client_t.validate_mail(mail_t mail):void! {
+    if mail.from == "" {
+        throw errorf("From address is required")
+    }
+
+    if mail.to.len() == 0 && mail.cc.len() == 0 && mail.bcc.len() == 0 {
+        throw errorf("At least one recipient is required")
+    }
+
+    if mail.subject == "" {
+        throw errorf("Subject is required")
+    }
+
+    if mail.body == "" {
+        throw errorf("Mail body is required")
+    }
+}
+
+// Build plain text mail content (following RFC 5322, RFC 2047 standards)
+fn client_t.build_mail_content(mail_t mail):string {
+    var content = ""
+
+    // Build mail headers (RFC 5322 required fields)
+    content += fmt.sprintf("From: %s\r\n", mail.from)
+    
+    if mail.to.len() > 0 {
+        content += fmt.sprintf("To: %s\r\n", strings.join(mail.to, ", "))
+    }
+    
+    if mail.cc.len() > 0 {
+        content += fmt.sprintf("Cc: %s\r\n", strings.join(mail.cc, ", "))
+    }
+
+    // RFC 2047 standard: non-ASCII character encoding
+    content += fmt.sprintf("Subject: =?UTF-8?B?%s?=\r\n", base64.encode(mail.subject as [u8]) as string)
+    content += fmt.sprintf("Date: %s\r\n", self.format_date())
+    
+    // Add custom headers
+    for key, value in mail.headers {
+        content += fmt.sprintf("%s: %s\r\n", key, value)
+    }
+
+    // Plain text mail headers
+    content += "Content-Type: text/plain; charset=UTF-8\r\n"
+    content += "Content-Transfer-Encoding: base64\r\n\r\n"
+    
+    // Mail body (Base64 encoded)
+    content += base64.encode(mail.body as [u8]) as string + "\r\n"
+
+    return content
+}
+
+// Format date (RFC 2822 standard)
+fn client_t.format_date():string {
+    var now = time.now()
+    var buf = vec_new<u8>(0, 100)
+    
+    // RFC 2822 standard date format
+    var len = libc.strftime(
+        buf.ref() as libc.cstr, 
+        buf.len() as u64, 
+        '%a, %d %b %Y %H:%M:%S %z'.to_cstr(), 
+        now.tm,
+    )
+    
+    return buf[0..len] as string
+}
+
+// Send command
+fn client_t.send_command(string command):void! {
+    self.conn.write(command as [u8])
+}
+
+// Read response
+fn client_t.read_response():smtp_response_t! {
+    var conn = self.conn
+    var buffer = vec_new<u8>(0, 4096)
+    var n = conn.read(buffer)
+    var response_str = buffer[0..n] as string
+
+    var lines = response_str.split("\r\n")
+    var first_line = lines[0]
+    
+    if first_line.len() < 3 {
+        throw errorf("Invalid SMTP response")
+    }
+
+    var code_str = first_line[0..3]
+    var code = code_str.to_int() catch e {
+        throw errorf("Invalid SMTP response code")
+    }
+
+    var full_message = ""
+    for line in lines {
+        if line.len() > 0 {
+            if full_message != "" {
+                full_message += "\n"
+            }
+            if line.len() > 4 {
+                full_message += line[4..]  // Skip status code part
+            }
+        }
+    }
+
+    return smtp_response_t{
+        code = code,
+        message = full_message,
+    }
+}
+
+// Close connection
+fn client_t.close():void! {
+    self.send_command("QUIT\r\n")
+    self.conn.close()
+    self.authenticated = false
+}
+
+fn send(string subject, string body, [string] to):void! {
+    var host = config.cache.mail_host
+    var port = config.cache.mail_port
+    var username = config.cache.mail_username
+    var password = config.cache.mail_password
+    var client = client_new(config_t{
+        host = host,
+        port = port,
+        username = username,
+        password = password,
+        helo_domain = "localhost",
+    })
+
+    var mail = mail_t{
+        from = username,
+        to = to,
+        cc = [],
+        bcc = [],
+        subject = subject,
+        body = body,
+        headers = {
+            "X-Mailer": "Nature SMTP Client v1.0",
+        },
+    }
+    client.send(mail) catch e {
+        client.close()
+        throw e
+    }
+
+    client.close()
+}
+
+// Example usage
+fn main():void! {
+    // SMTP configuration
+    var config = config_t{
+        host = "smtp.163.com",
+        port = 465,
+        username = "xxxxxx",
+        password = "xxxxxx",
+        helo_domain = "localhost",
+    }
+
+    // Create plain text mail
+    var mail = mail_t{
+        from = "ay1101140857@163.com",
+        to = ['1101140857@qq.com'],
+        cc = [],
+        bcc = [],
+        subject = "Test Mail - Nature SMTP Client",
+        body = "This is a test mail plain text content.\n\nSent time: 2025",
+        headers = {
+            "X-Mailer": "Nature SMTP Client v1.0",
+        },
+    }
+
+    // Send mail
+    var client = client_new(config)
+    try {
+        client.send(mail)
+        println("Mail sent successfully!")
+    } catch e {
+        println("Mail sending failed:", e.msg())
+    }
+
+    client.close()
+}

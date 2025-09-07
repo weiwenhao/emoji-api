@@ -10,5 +10,6 @@ fn register(ptr<api.api_t> app) {
 
     var v1 = app.group('/api/v1')
     v1.post('/login', auth.login)
+    v1.post('/captcha', auth.captcha)
     v1.post('/register', auth.register)
 }

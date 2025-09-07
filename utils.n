@@ -1,0 +1,17 @@
+import libc
+import time
+import fmt
+
+fn gen_captcha():string {
+    // Initialize random seed with current time
+    libc.srand(time.now().ms_timestamp() as u32)
+    
+    var random_num = libc.rand() % 999999
+    
+    // Format as 6-digit string with leading zeros if needed
+    return fmt.sprintf("%06d", random_num)
+}
+
+fn main():void!{
+    println(gen_captcha())
+}
