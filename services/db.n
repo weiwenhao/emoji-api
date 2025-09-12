@@ -262,12 +262,12 @@ fn main():void! {
         string? email
     }
 
-    var list = db_result.deserialize<user_t>(result)
+    var list = db_result.scan<user_t>(result)
     for u in list {
         println(u.id, u.nickname, u.email)
     }
 
-    var list3 = db_result.deserialize<{string:any}>(result)
+    var list3 = db_result.scan<{string:any}>(result)
     for u in list3 {
         println(u['id'], u['nickname'], u['email'])
     }

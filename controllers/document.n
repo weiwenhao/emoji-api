@@ -1,6 +1,75 @@
 import emoji.services.api
 import emoji.services.db
+import emoji.models.document
+import json
 
-fn index():void! {
+fn index(ptr<api.ctx_t> ctx):void! {
+    var user_id = ctx.get('auth_id') as int catch e {
+        return ctx.json(401, {'error': 'unauthorized'})
+    }
 
+    var docs = document.get(user_id)   
+    return ctx.json(200, {
+        'data': docs,
+    })
+}
+
+
+type body_t = struct{
+    string title
+    string content
+    [string] images
+    string? video
+    {string:any} layout
+}
+
+fn create(ptr<api.ctx_t> ctx):void! {
+    var body = json.deserialize<body_t>(ctx.req.body) catch e {
+        return ctx.json(400, {'error': 'invalid payload'})
+    }
+
+    if body.content == '' && body.title == '' && body.video is null && body.images.len() == 0 {
+        return ctx.json(400, {'error': 'invalid payload'})
+    }
+
+    var user_id = ctx.get('auth_id') as int catch e {
+        return ctx.json(401, {'error': 'unauthorized'})
+    }
+
+    var doc = document.create(user_id, body.title, body.content, body.images, body.video, body.layout)
+    return ctx.json(200, doc)
+}
+
+fn update(ptr<api.ctx_t> ctx):void! {
+    var body = json.deserialize<body_t>(ctx.req.body) catch e {
+        return ctx.json(400, {'error': 'invalid payload'})
+    }
+
+    if body.content == '' && body.title == '' && body.video is null && body.images.len() == 0 {
+        return ctx.json(400, {'error': 'invalid payload'})
+    } 
+
+    var doc_id = ctx.param('id').to_int()
+    var doc = document.find(doc_id) catch e {
+        return ctx.json(404, {'error': 'document not found'})
+    }
+
+    var user_id = ctx.get('auth_id') as int catch e {
+        return ctx.json(401, {'error': 'unauthorized'})
+    }
+
+    if doc.user_id != user_id {
+        return ctx.json(401, {'error': 'execption document'})
+    }
+
+    
+    doc.title = body.title
+    doc.content = body.content
+    doc.video = body.video
+    doc.images = body.images
+    doc.video = body.video
+    doc.layout = body.layout
+    document.update(doc)
+
+    return ctx.json(200, doc)
 }

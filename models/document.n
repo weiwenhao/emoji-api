@@ -1,9 +1,79 @@
-type document = struct{
+import emoji.services.db
+import json
+import time
+import db.result as db_result
+
+type document_t = struct{
     int id
     int created_at
-    int updated_t
+    int updated_at
+    int user_id
+    string title
     string content
     [string] images 
-    string video
+    string? video
     {string:any} layout
+}
+
+fn get(int user_id):[document_t]! {
+    var result = db.conn().query("SELECT * FROM documents WHERE user_id = ?", user_id)
+    return db_result.scan<document_t>(result)
+}
+
+fn create(int user_id, string title, string content, [string] images, string? video, {string:any} layout):document_t! {
+    var created_at = time.unix()
+    var updated_at = created_at
+    var images_str = json.serialize(images)
+    var layout_str = json.serialize(layout)
+
+    var result = db.conn().execute("INSERT INTO documents (user_id, title, content, images, video, layout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        user_id, title, content, images_str, video, layout_str, created_at, updated_at)
+
+    return document_t{
+        id = result.last_insert_id,
+        created_at = created_at,
+        updated_at = updated_at,
+        user_id = user_id,
+        title = title,
+        content = content,
+        images = images,
+        video = video,
+        layout = layout,
+    }
+} 
+
+fn update(document_t doc):void! {
+    var updated_at = time.unix()
+    var images_str = json.serialize(doc.images)
+    var layout_str = json.serialize(doc.layout)
+    if doc.id <= 0 {
+        throw errorf("Invalid document id")
+    }
+
+    db.conn().execute(
+        "UPDATE documents SET updated_at = ?, title = ?, content = ?, images = ?, video = ?, layout = ? WHERE id = ?",
+        updated_at,
+        doc.title,
+        doc.content,
+        images_str,
+        doc.video,
+        layout_str,
+        doc.id,
+    )
+}
+
+fn find(int id):document_t! {
+    var result = db.conn().query('select * from documents where id = ?', id)
+    if result.rows.len() == 0 {
+        throw errorf('document not found')
+    }
+
+    var list = db_result.scan<document_t>(result) catch e {
+        throw errorf('data cannot cast to document_t struct')
+    }
+    if list.len() <= 0 {
+        throw errorf('document not found')
+    }
+
+    return list[0]
 }

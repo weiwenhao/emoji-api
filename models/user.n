@@ -2,17 +2,18 @@ import emoji.services.db
 import time
 import crypto.bcrypt
 import emoji.utils
+import db.result as db_result
 
-type document = struct{
+type user_t = struct{
     int id
     int created_at
     int updated_t
-    string avatar
+    string? avatar
     string nickname
     string email
-    string phone
+    string? phone
     string password
-    string signature
+    string? signature
 }
 
 // email:(code,expired_at)
@@ -59,4 +60,20 @@ fn login(string email, string password):int! {
     }
 
     return id
+}
+
+fn find(int id):user_t! {
+    var result = db.conn().query('select * from users where id = ?', id)
+    if result.rows.len() == 0 {
+        throw errorf('user not found')
+    }
+
+    var list = db_result.scan<user_t>(result) catch e {
+        throw errorf('data cannot cast to user_t struct')
+    }
+    if list.len() <= 0 {
+        throw errorf('user not found')
+    }
+
+    return list[0]
 }

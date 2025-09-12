@@ -10,7 +10,7 @@ import co
 
 // JWT configuration constants
 const JWT_ALGORITHM = "HS256"
-const JWT_DEFAULT_EXPIRY = 3600 // 1 hour in seconds
+const JWT_DEFAULT_EXPIRY = 3600 * 24 // 1 hour in seconds
 const JWT_ISSUER = "emoji-api"
 
 // JWT Header structure

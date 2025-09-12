@@ -1,6 +1,7 @@
 import emoji.services.api
 import emoji.controllers.document
 import emoji.controllers.auth
+import emoji.middlewares.auth as middleware_auth
 import http
 
 fn register(ptr<api.api_t> app) {
@@ -12,4 +13,12 @@ fn register(ptr<api.api_t> app) {
     v1.post('/login', auth.login)
     v1.post('/captcha', auth.captcha)
     v1.post('/register', auth.register)
+
+    v1.use(middleware_auth.auth)
+
+    v1.get('/user', auth.show)
+
+    v1.get('/documents', document.index)
+    v1.post('/documents', document.create)
+    v1.put('/documents/:id', document.update)
 }

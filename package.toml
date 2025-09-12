@@ -7,4 +7,4 @@ type = "lib"
 [links]
 
 [dependencies]
-db = { type = "git", version = "v0.10.0", url = "github.com/weiwenhao/dbdriver" }
+db = { type = "git", version = "v0.13.0", url = "github.com/weiwenhao/dbdriver" }

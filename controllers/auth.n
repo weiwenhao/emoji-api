@@ -79,3 +79,13 @@ fn login(ptr<api.ctx_t> ctx):void! {
     var token = jwt.generate(fmt.sprintf('%d', user_id), {}, 0)
     return ctx.json(200, {'token': token})
 }
+
+fn show(ptr<api.ctx_t> ctx):void! {
+    if ctx.get('auth_id') is null {
+        return ctx.json(500, {'error': 'invalid user'})
+    }
+
+    var user_id = ctx.get('auth_id') as int
+    var u = user.find(user_id)
+    ctx.json(200, u)
+}

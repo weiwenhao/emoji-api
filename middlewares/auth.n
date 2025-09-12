@@ -1,5 +1,29 @@
 import emoji.services.api
+import emoji.services.jwt
 
 fn auth(ptr<api.ctx_t> c):void! {
+    var authorization = c.req.headers['Authorization'] catch e {
+        return c.json(401, {'error': 'Unauthorized'})
+    }
+
+    if !authorization.starts_with('Bearer ') {
+        return c.json(401, {'error': 'Unauthorized'})
+    }
+
+    var token = authorization[7..]
+
+    var jwt_body =  jwt.verify(token) catch e {
+        return c.json(401, {'error': 'Unauthorized'})
+    }
+
+    var user_id = jwt_body.payload.sub.to_int() catch e {
+        return c.json(401, {'error': 'Unauthorized'})
+    }
+
+    if user_id == 0 {
+        return c.json(401, {'error': 'Unauthorized'})
+    }
+
+    c.set('auth_id', user_id)
     c.next()
 }

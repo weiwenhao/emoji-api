@@ -3,6 +3,7 @@ import json
 import strings
 import co.mutex
 import time
+import net.url
 
 // MIME types that are commonly used
 string MIME_TEXT_XML = "text/xml"
@@ -105,6 +106,7 @@ const METHOD_USE = "USE"
 type ctx_t = struct {
     http.request_t req
     ptr<http.response_t> res
+    {string:[string]} queries
     {string:string} params
     {string:any} locals
     bool response_sent
@@ -211,6 +213,14 @@ fn ctx_t.param(string key):string {
     }
 }
 
+fn ctx_t.query(string key):string {
+    var list = self.queries[key] catch e {
+        return ""
+    }
+
+    return list[0]
+}
+
 fn ctx_t.set(string key, any value) {
     self.locals[key] = value
 }
@@ -282,6 +292,38 @@ fn api_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
     self.global_middlewares.append(handlers)
 }
 
+fn api_t.parse_query(string raw_query):{string:[string]} {
+    if raw_query == '' {
+        return {}
+    }
+
+    {string:[string]} result = {}
+    
+    var pairs = raw_query.split('&')
+    for pair in pairs {
+        var kv = pair.split('=')
+        if kv.len() >= 1 {
+            var key = kv[0]
+            var value = ""
+            if kv.len() == 2 {
+                value = kv[1]
+            }
+
+
+            key = url.decode(key)
+            value = url.decode(value)
+
+            if result.contains(key) {
+                result[key].push(value)
+            } else {
+                result[key] = [value]
+            }
+        }
+    }
+    
+    return result
+}
+
 fn api_t.handle_callback(ptr<ctx_t> ctx):void! {
     var (route, params) = self.match_route(ctx.req) catch e {
         ctx.res.status = STATUS_NOT_FOUND
@@ -293,6 +335,9 @@ fn api_t.handle_callback(ptr<ctx_t> ctx):void! {
     ctx.res.status = STATUS_OK
     ctx.handlers = route.handlers
     ctx.params = params
+
+    // handle query
+    ctx.queries = self.parse_query(ctx.req.query)
     
     ctx.next() catch e {
         ctx.res.status = STATUS_INTERNAL_SERVER_ERROR
