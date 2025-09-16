@@ -15,7 +15,7 @@ const SMTP_AUTH_CONTINUE = 334
 const SMTP_START_MAIL_INPUT = 354
 
 // SMTP configuration structure
-type config_t = struct {
+type config_t = struct{
     string host     // SMTP server address:port
     int port
     string username     // Username
@@ -24,7 +24,7 @@ type config_t = struct {
 }
 
 // Mail structure (plain text)
-type mail_t = struct {
+type mail_t = struct{
     string from         // Sender
     [string] to         // Recipient list
     [string] cc         // CC list
@@ -35,13 +35,13 @@ type mail_t = struct {
 }
 
 // SMTP response structure
-type smtp_response_t = struct {
+type smtp_response_t = struct{
     int code
     string message
 }
 
 // SMTP client structure
-type client_t = struct {
+type client_t = struct{
     config_t config
     ptr<tls.conn_t> conn
     bool connected

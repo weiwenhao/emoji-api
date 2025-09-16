@@ -103,7 +103,7 @@ const METHOD_HEAD = "HEAD"
 const METHOD_OPTIONS = "OPTIONS"
 const METHOD_USE = "USE"
 
-type ctx_t = struct {
+type ctx_t = struct{
     http.request_t req
     ptr<http.response_t> res
     {string:[string]} queries
@@ -114,28 +114,28 @@ type ctx_t = struct {
     int handler_index
 }
 
-type route_t = struct {
+type route_t = struct{
     string method
     string path
     [fn(ptr<ctx_t>):void!] handlers
 }
 
-type api_t = struct {
+type app_t = struct{
     [route_t] routes
     bool debug_mode
     ptr<http.server_t> server
     [fn(ptr<ctx_t>):void!] global_middlewares
 }
 
-type group_t = struct {
+type group_t = struct{
     string prefix
-    ptr<api_t> app
+    ptr<app_t> app
     [fn(ptr<ctx_t>):void!] middlewares
     ptr<group_t>? parent
 }
 
-fn new():ptr<api_t> {
-    var app = new api_t(server = http.server())
+fn new():ptr<app_t> {
+    var app = new app_t(server = http.server())
     app.server.all('/', fn(http.request_t req, ptr<http.response_t> res):void! {
         var ctx = new ctx_t(
             req,
@@ -152,7 +152,7 @@ fn new():ptr<api_t> {
     return app
 }
 
-fn api_t.group(string prefix, ...[fn(ptr<ctx_t>):void!] middlewares):ptr<group_t> {
+fn app_t.group(string prefix, ...[fn(ptr<ctx_t>):void!] middlewares):ptr<group_t> {
     var group = new group_t(
         prefix = self.normalize_prefix(prefix),
         app = self,
@@ -162,7 +162,7 @@ fn api_t.group(string prefix, ...[fn(ptr<ctx_t>):void!] middlewares):ptr<group_t
     return group
 }
 
-fn api_t.normalize_prefix(string prefix):string {
+fn app_t.normalize_prefix(string prefix):string {
     if prefix == "" {
         return ""
     }
@@ -252,27 +252,27 @@ fn parse_path(string path):([string], bool) {
     return (segments, has_params)
 }
 
-fn api_t.get(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.get(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("GET", path, handlers)
 }
 
-fn api_t.post(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.post(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("POST", path, handlers)
 }
 
-fn api_t.put(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.put(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("PUT", path, handlers)
 }
 
-fn api_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("DELETE", path, handlers)
 }
 
-fn api_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("PATCH", path, handlers)
 }
 
-fn api_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
     var (segments, has_params) = parse_path(path)
     
     [fn(ptr<ctx_t>):void!] all_handlers = []
@@ -288,11 +288,11 @@ fn api_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):
     self.routes.push(route)
 }
 
-fn api_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
     self.global_middlewares.append(handlers)
 }
 
-fn api_t.parse_query(string raw_query):{string:[string]} {
+fn app_t.parse_query(string raw_query):{string:[string]} {
     if raw_query == '' {
         return {}
     }
@@ -324,7 +324,7 @@ fn api_t.parse_query(string raw_query):{string:[string]} {
     return result
 }
 
-fn api_t.handle_callback(ptr<ctx_t> ctx):void! {
+fn app_t.handle_callback(ptr<ctx_t> ctx):void! {
     var (route, params) = self.match_route(ctx.req) catch e {
         ctx.res.status = STATUS_NOT_FOUND
         ctx.res.send('Not Found')
@@ -346,7 +346,7 @@ fn api_t.handle_callback(ptr<ctx_t> ctx):void! {
     }
 }
 
-fn api_t.match_route(http.request_t req):(route_t, {string:string})! {
+fn app_t.match_route(http.request_t req):(route_t, {string:string})! {
     for route in self.routes {
         if route.method == match_http_method(req.method) {
             var (matched, params) = self.match_path(route.path, req.path)
@@ -371,7 +371,7 @@ fn match_http_method(u8 method):string {
     }
 }
 
-fn api_t.match_path(string route_path, string request_path):(bool, {string:string}) {
+fn app_t.match_path(string route_path, string request_path):(bool, {string:string}) {
     var route_segments = route_path.split('/')
     var request_segments = request_path.split('/')
     
@@ -440,7 +440,7 @@ fn group_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
     self.middlewares.append(handlers)
 }
 
-fn api_t.listen(int port):void! {
+fn app_t.listen(int port):void! {
     println("Server listening on port", port)
     self.server.listen(port)
 }

@@ -10,7 +10,7 @@ import unsafe
 import runtime
 import time
 
-type pool_config_t = struct {
+type pool_config_t = struct{
     int min_connections = 5
     int max_connections = 20
     int acquire_timeout = 30000 // 30s
@@ -18,7 +18,7 @@ type pool_config_t = struct {
     bool test_on_borrow = true
 }
 
-type pooled_conn_t = struct {
+type pooled_conn_t = struct{
     ptr<mysql.conn_t> conn
     int created_at
     int last_used_at

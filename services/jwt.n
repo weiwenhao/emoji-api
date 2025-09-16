@@ -14,13 +14,13 @@ const JWT_DEFAULT_EXPIRY = 3600 * 24 // 1 hour in seconds
 const JWT_ISSUER = "emoji-api"
 
 // JWT Header structure
-type jwt_header_t = struct {
+type jwt_header_t = struct{
     string alg
     string typ
 }
 
 // JWT Payload structure (Standard JWT Claims)
-type jwt_payload_t = struct {
+type jwt_payload_t = struct{
     string sub    // subject (user ID) - standard field
     string iss    // issuer - standard field
     int iat       // issued at (issue time) - standard field
@@ -31,7 +31,7 @@ type jwt_payload_t = struct {
 }
 
 // JWT Token structure
-type jwt_token_t = struct {
+type jwt_token_t = struct{
     jwt_header_t header
     jwt_payload_t payload
     string signature
@@ -39,7 +39,7 @@ type jwt_token_t = struct {
 }
 
 // JWT configuration structure
-type jwt_config_t = struct {
+type jwt_config_t = struct{
     string secret_key
     int default_expiry
     string issuer
