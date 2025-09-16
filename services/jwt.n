@@ -55,7 +55,7 @@ var jwt_config = jwt_config_t{
 }
 
 // Initialize JWT configuration
-fn init_jwt(string secret_key, int expiry, string issuer):void {
+fn init(string secret_key, int expiry, string issuer):void {
     jwt_config.secret_key = secret_key
     if expiry > 0 {
         jwt_config.default_expiry = expiry
@@ -264,7 +264,7 @@ fn create_signature(string data, string secret):[u8] {
 }
 
 fn main():void! {
-    init_jwt("emoji-api.helloworld202509052341", 7200, "emoji")
+    init("emoji-api.helloworld202509052341", 7200, "emoji")
     
     // Generate token
     {string:any} custom_data = {
