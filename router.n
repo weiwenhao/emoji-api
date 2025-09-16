@@ -14,7 +14,7 @@ fn register(ptr<api.app_t> app) {
     v1.post('/captcha', auth.captcha)
     v1.post('/register', auth.register)
 
-    v1.use(middleware_auth.auth)
+    v1.use(middleware_auth.handle)
 
     v1.get('/user', auth.show)
 
