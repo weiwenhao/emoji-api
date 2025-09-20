@@ -6,15 +6,13 @@ Add dependency to package.toml
 
 ```toml
 [dependencies]
-emoji = { type = "git", version = "v0.1.0", url = "github.com/weiwenhao/emoji-api" }
+emoji = { type = "git", version = "v0.1.1", url = "github.com/weiwenhao/emoji-api" }
 ```
 
 ## Quickstart
 
 ```js
-import json
 import fmt
-
 import emoji.services.api
 
 fn main() {
@@ -43,7 +41,7 @@ fn main() {
 ```js
 import emoji.services.db
 
-// dep: db = { type = "git", version = "v0.13.0", url = "github.com/weiwenhao/dbdriver" }
+// dep: db = { type = "git", version = "v0.14.0", url = "github.com/weiwenhao/dbdriver" }
 import db.result as db_result
 
 fn main() {
