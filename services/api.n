@@ -102,6 +102,7 @@ const METHOD_PATCH = "PATCH"
 const METHOD_HEAD = "HEAD"
 const METHOD_OPTIONS = "OPTIONS"
 const METHOD_USE = "USE"
+const METHOD_ALL = "ALL"
 
 type ctx_t = struct{
     http.request_t req
@@ -136,6 +137,7 @@ type group_t = struct{
 
 fn new():ptr<app_t> {
     var app = new app_t(server = http.server())
+
     app.server.all('/', fn(http.request_t req, ptr<http.response_t> res):void! {
         var ctx = new ctx_t(
             req,
@@ -272,6 +274,14 @@ fn app_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("PATCH", path, handlers)
 }
 
+fn app_t.options(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("OPTIONS", path, handlers)
+}
+
+fn app_t.all(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("ALL", path, handlers)
+}
+
 fn app_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
     var (segments, has_params) = parse_path(path)
     
@@ -348,7 +358,7 @@ fn app_t.handle_callback(ptr<ctx_t> ctx):void! {
 
 fn app_t.match_route(http.request_t req):(route_t, {string:string})! {
     for route in self.routes {
-        if route.method == match_http_method(req.method) {
+        if route.method == match_http_method(req.method) || route.method == METHOD_ALL {
             var (matched, params) = self.match_path(route.path, req.path)
             if matched {
                 return (route, params)
@@ -372,10 +382,14 @@ fn match_http_method(u8 method):string {
 }
 
 fn app_t.match_path(string route_path, string request_path):(bool, {string:string}) {
+    {string:string} params = {}
+    if route_path == '/' {
+        return (true, params)
+    }
+
     var route_segments = route_path.split('/')
     var request_segments = request_path.split('/')
     
-    {string:string} params = {}
     if route_segments.len() != request_segments.len() {
         return (false, params)
     }
@@ -412,6 +426,14 @@ fn group_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
 
 fn group_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
     self.add_route("PATCH", path, handlers)
+}
+
+fn group_t.options(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("OPTIONS", path, handlers)
+}
+
+fn group_t.all(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+    self.add_route("ALL", path, handlers)
 }
 
 fn group_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
