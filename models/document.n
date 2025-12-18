@@ -30,15 +30,15 @@ fn create(int user_id, string title, string content, [string] images, string? vi
         user_id, title, content, images_str, video, layout_str, created_at, updated_at)
 
     return document_t{
-        id = result.last_insert_id,
-        created_at = created_at,
-        updated_at = updated_at,
-        user_id = user_id,
-        title = title,
-        content = content,
-        images = images,
-        video = video,
-        layout = layout,
+        id: result.last_insert_id,
+        created_at: created_at,
+        updated_at: updated_at,
+        user_id: user_id,
+        title: title,
+        content: content,
+        images: images,
+        video: video,
+        layout: layout,
     }
 } 
 

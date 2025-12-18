@@ -306,8 +306,8 @@ fn client_t.read_response():smtp_response_t! {
     }
 
     return smtp_response_t{
-        code = code,
-        message = full_message,
+        code: code,
+        message: full_message,
     }
 }
 
@@ -324,21 +324,21 @@ fn send(string subject, string body, [string] to):void! {
     var username = config.cache.mail_username
     var password = config.cache.mail_password
     var client = client_new(config_t{
-        host = host,
-        port = port,
-        username = username,
-        password = password,
-        helo_domain = "localhost",
+        host: host,
+        port: port,
+        username: username,
+        password: password,
+        helo_domain: "localhost",
     })
 
     var mail = mail_t{
-        from = username,
-        to = to,
-        cc = [],
-        bcc = [],
-        subject = subject,
-        body = body,
-        headers = {
+        from: username,
+        to: to,
+        cc: [],
+        bcc: [],
+        subject: subject,
+        body: body,
+        headers: {
             "X-Mailer": "Nature SMTP Client v1.0",
         },
     }
@@ -354,22 +354,22 @@ fn send(string subject, string body, [string] to):void! {
 fn main():void! {
     // SMTP configuration
     var config = config_t{
-        host = "smtp.163.com",
-        port = 465,
-        username = "xxxxxx",
-        password = "xxxxxx",
-        helo_domain = "localhost",
+        host: "smtp.163.com",
+        port: 465,
+        username: "xxxxxx",
+        password: "xxxxxx",
+        helo_domain: "localhost",
     }
 
     // Create plain text mail
     var mail = mail_t{
-        from = "ay1101140857@163.com",
-        to = ['1101140857@qq.com'],
-        cc = [],
-        bcc = [],
-        subject = "Test Mail - Nature SMTP Client",
-        body = "This is a test mail plain text content.\n\nSent time: 2025",
-        headers = {
+        from: "ay1101140857@163.com",
+        to: ['1101140857@qq.com'],
+        cc: [],
+        bcc: [],
+        subject: "Test Mail - Nature SMTP Client",
+        body: "This is a test mail plain text content.\n\nSent time: 2025",
+        headers: {
             "X-Mailer": "Nature SMTP Client v1.0",
         },
     }

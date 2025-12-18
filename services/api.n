@@ -290,9 +290,9 @@ fn app_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):
     all_handlers.append(handlers)
 
     var route = route_t{
-        method = method,
-        path = path,
-        handlers = all_handlers,
+        method: method,
+        path: path,
+        handlers: all_handlers,
     }
     
     self.routes.push(route)
