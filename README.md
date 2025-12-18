@@ -6,7 +6,7 @@ Add dependency to package.toml
 
 ```toml
 [dependencies]
-emoji = { type = "git", version = "v0.1.1", url = "github.com/weiwenhao/emoji-api" }
+emoji = { type = "git", version = "v0.2.0", url = "github.com/weiwenhao/emoji-api" }
 ```
 
 ## Quickstart
@@ -153,22 +153,22 @@ import emoji.services.mail
 fn main() {
     // SMTP configuration
     var config = mail.config_t{
-        host = 'smtp.163.com',
-        port = 465,
-        username = 'xxxxxx',
-        password = 'xxxxxx',
-        helo_domain = 'localhost',
+        host: 'smtp.163.com',
+        port: 465,
+        username: 'xxxxxx',
+        password: 'xxxxxx',
+        helo_domain: 'localhost',   
     }
 
     // Create plain text mail
     var m = mail.mail_t{
-        from = 'username@163.com',
-        to = ['username@qq.com'],
-        cc = [],
-        bcc = [],
-        subject = 'Test Mail - Nature SMTP Client',
-        body = 'This is a test mail plain text content.\n\nSent time: 2025',
-        headers = {
+        from: 'username@163.com',
+        to: ['username@qq.com'],
+        cc: [],
+        bcc: [],
+        subject: 'Test Mail - Nature SMTP Client',
+        body: 'This is a test mail plain text content.\n\nSent time: 2025',
+        headers: {
             'X-Mailer': 'Nature SMTP Client v1.0',
         },
     }
