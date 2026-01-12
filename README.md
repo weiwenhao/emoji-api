@@ -6,7 +6,7 @@ Add dependency to package.toml
 
 ```toml
 [dependencies]
-emoji = { type = "git", version = "v0.2.0", url = "github.com/weiwenhao/emoji-api" }
+emoji = { type = "git", version = "vx.x.x", url = "github.com/weiwenhao/emoji-api" }
 ```
 
 ## Quickstart

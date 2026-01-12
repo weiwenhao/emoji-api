@@ -73,8 +73,8 @@ fn init(string raw_url):ptr<db_t>! {
 }
 
 fn conn():ptr<pooled_conn_t>! {
-    if global_db is ptr<db_t> {
-        return global_db.conn()
+    if global_db is ptr<db_t> g {
+        return g.conn()
     }
 
     throw errorf('db not initialized')
@@ -159,8 +159,8 @@ fn pooled_conn_t.query(string sql, ...[any] args):db_result.query_t! {
 }
 
 fn pooled_conn_t.release() {
-    if global_db is ptr<db_t> {
-        global_db.release_connection(self)
+    if global_db is ptr<db_t> g {
+        g.release_connection(self)
     }
 }
 

@@ -1,11 +1,11 @@
 name = "emoji"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["weiwenhao <wwhacker@qq.com>"]
 license = "MIT"
 type = "lib"
-nature = "0.7+"
+nature = "0.7.2"
 
 [links]
 
 [dependencies]
-db = { type = "git", version = "v0.15.0", url = "github.com/weiwenhao/dbdriver" }
+db = { type = "git", version = "v0.16.0", url = "github.com/weiwenhao/dbdriver" }
