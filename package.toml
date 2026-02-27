@@ -8,4 +8,4 @@ nature = "0.7.2"
 [links]
 
 [dependencies]
-db = { type = "git", version = "v0.16.0", url = "github.com/weiwenhao/dbdriver" }
+db = { type = "git", version = "v0.17.0", url = "github.com/weiwenhao/dbdriver" }

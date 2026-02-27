@@ -17,12 +17,12 @@ import emoji.services.api
 
 fn main() {
     var app = api.new()
-    app.use(fn(ptr<api.ctx_t> c):void! { 
+    app.use(fn(ref<api.ctx_t> c):void! { 
         fmt.printf('request log %d %s\n', c.req.method, c.req.url)
         c.next()
     })
 
-    app.get('/hello/:msg', fn(ptr<api.ctx_t> c):void! {
+    app.get('/hello/:msg', fn(ref<api.ctx_t> c):void! {
         return c.json(200, {
             'message': 'ok',
             'data': 'hello ' + c.param('msg'),
@@ -103,7 +103,7 @@ fn main() {
     var app = api.new()
 
     // need Header Authorization: Bearer Token
-    app.get('/users/auth', auth.handle, fn(ptr<api.ctx_t> c):void! {
+    app.get('/users/auth', auth.handle, fn(ref<api.ctx_t> c):void! {
         var user_id = c.get('auth_id') as int
         // ...
     })

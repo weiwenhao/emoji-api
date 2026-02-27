@@ -43,14 +43,14 @@ type smtp_response_t = struct{
 // SMTP client structure
 type client_t = struct{
     config_t config
-    ptr<tls.conn_t> conn
+    ref<tls.conn_t> conn
     bool connected
     bool authenticated
     [string] server_extensions
 }
 
 // Create new SMTP client
-fn client_new(config_t config):ptr<client_t>! {
+fn client_new(config_t config):ref<client_t>! {
     var ips = dns.lookup(config.host)
     if ips.len() == 0 {
         throw errorf("no such host")
@@ -82,7 +82,7 @@ fn client_new(config_t config):ptr<client_t>! {
 }
 
 // Send EHLO command
-fn client_t.send_ehlo():void! {
+fn client_t.send_ehlo(&self):void! {
     var domain = self.config.helo_domain
     if domain == "" {
         domain = "localhost"
@@ -101,7 +101,7 @@ fn client_t.send_ehlo():void! {
 }
 
 // Parse server extensions
-fn client_t.parse_extensions(string message):void {
+fn client_t.parse_extensions(&self, string message):void {
     var lines = message.split("\n")
     for line in lines {
         var trimmed = line.trim([' '])
@@ -112,7 +112,7 @@ fn client_t.parse_extensions(string message):void {
 }
 
 // Check if server supports an extension
-fn client_t.has_extension(string ext):bool {
+fn client_t.has_extension(&self, string ext):bool {
     for extension in self.server_extensions {
         if extension.starts_with(ext) {
             return true
@@ -122,7 +122,7 @@ fn client_t.has_extension(string ext):bool {
 }
 
 // Authentication
-fn client_t.authenticate():void! {
+fn client_t.authenticate(&self):void! {
     if !self.has_extension("AUTH") {
         throw errorf("Server does not support authentication")
     }
@@ -154,7 +154,7 @@ fn client_t.authenticate():void! {
 }
 
 // Send mail
-fn client_t.send(mail_t mail):void! {
+fn client_t.send(&self, mail_t mail):void! {
     // Validate mail data
     self.validate_mail(mail)
 
@@ -201,7 +201,7 @@ fn client_t.send(mail_t mail):void! {
 }
 
 // Validate mail data
-fn client_t.validate_mail(mail_t mail):void! {
+fn client_t.validate_mail(&self, mail_t mail):void! {
     if mail.from == "" {
         throw errorf("From address is required")
     }
@@ -220,7 +220,7 @@ fn client_t.validate_mail(mail_t mail):void! {
 }
 
 // Build plain text mail content (following RFC 5322, RFC 2047 standards)
-fn client_t.build_mail_content(mail_t mail):string {
+fn client_t.build_mail_content(&self, mail_t mail):string {
     var content = ""
 
     // Build mail headers (RFC 5322 required fields)
@@ -254,9 +254,9 @@ fn client_t.build_mail_content(mail_t mail):string {
 }
 
 // Format date (RFC 2822 standard)
-fn client_t.format_date():string {
+fn client_t.format_date(&self):string {
     var now = time.now()
-    var buf = vec_new<u8>(0, 100)
+    var buf = vec<u8>.new(0, 100)
     
     // RFC 2822 standard date format
     var len = libc.strftime(
@@ -270,14 +270,14 @@ fn client_t.format_date():string {
 }
 
 // Send command
-fn client_t.send_command(string command):void! {
+fn client_t.send_command(&self, string command):void! {
     self.conn.write(command as [u8])
 }
 
 // Read response
-fn client_t.read_response():smtp_response_t! {
+fn client_t.read_response(&self):smtp_response_t! {
     var conn = self.conn
-    var buffer = vec_new<u8>(0, 4096)
+    var buffer = vec<u8>.new(0, 4096)
     var n = conn.read(buffer)
     var response_str = buffer[0..n] as string
 
@@ -312,7 +312,7 @@ fn client_t.read_response():smtp_response_t! {
 }
 
 // Close connection
-fn client_t.close():void! {
+fn client_t.close(&self):void! {
     self.send_command("QUIT\r\n")
     self.conn.close()
     self.authenticated = false

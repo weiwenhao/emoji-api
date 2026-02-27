@@ -6,24 +6,24 @@ import time
 import net.url
 
 // MIME types that are commonly used
-string MIME_TEXT_XML = "text/xml"
-string MIME_TEXT_HTML = "text/html"
-string MIME_TEXT_PLAIN = "text/plain"
-string MIME_TEXT_JAVASCRIPT = "text/javascript"
-string MIME_APPLICATION_XML = "application/xml"
-string MIME_APPLICATION_JSON = "application/json"
-string MIME_APPLICATION_JAVASCRIPT = "application/javascript"
-string MIME_APPLICATION_FORM = "application/x-www-form-urlencoded"
-string MIME_OCTET_STREAM = "application/octet-stream"
-string MIME_MULTIPART_FORM = "multipart/form-data"
+const MIME_TEXT_XML = "text/xml"
+const MIME_TEXT_HTML = "text/html"
+const MIME_TEXT_PLAIN = "text/plain"
+const MIME_TEXT_JAVASCRIPT = "text/javascript"
+const MIME_APPLICATION_XML = "application/xml"
+const MIME_APPLICATION_JSON = "application/json"
+const MIME_APPLICATION_JAVASCRIPT = "application/javascript"
+const MIME_APPLICATION_FORM = "application/x-www-form-urlencoded"
+const MIME_OCTET_STREAM = "application/octet-stream"
+const MIME_MULTIPART_FORM = "multipart/form-data"
 
-string MIME_TEXT_XML_CHARSET_UTF8 = "text/xml; charset=utf-8"
-string MIME_TEXT_HTML_CHARSET_UTF8 = "text/html; charset=utf-8"
-string MIME_TEXT_PLAIN_CHARSET_UTF8 = "text/plain; charset=utf-8"
-string MIME_TEXT_JAVASCRIPT_CHARSET_UTF8 = "text/javascript; charset=utf-8"
-string MIME_APPLICATION_XML_CHARSET_UTF8 = "application/xml; charset=utf-8"
-string MIME_APPLICATION_JSON_CHARSET_UTF8 = "application/json; charset=utf-8"
-string MIME_APPLICATION_JAVASCRIPT_CHARSET_UTF8 = "application/javascript; charset=utf-8"
+const MIME_TEXT_XML_CHARSET_UTF8 = "text/xml; charset=utf-8"
+const MIME_TEXT_HTML_CHARSET_UTF8 = "text/html; charset=utf-8"
+const MIME_TEXT_PLAIN_CHARSET_UTF8 = "text/plain; charset=utf-8"
+const MIME_TEXT_JAVASCRIPT_CHARSET_UTF8 = "text/javascript; charset=utf-8"
+const MIME_APPLICATION_XML_CHARSET_UTF8 = "application/xml; charset=utf-8"
+const MIME_APPLICATION_JSON_CHARSET_UTF8 = "application/json; charset=utf-8"
+const MIME_APPLICATION_JAVASCRIPT_CHARSET_UTF8 = "application/javascript; charset=utf-8"
 
 // HTTP status codes
 int STATUS_CONTINUE = 100
@@ -106,39 +106,39 @@ const METHOD_ALL = "ALL"
 
 type ctx_t = struct{
     http.request_t req
-    ptr<http.response_t> res
+    ref<http.response_t> res
     {string:[string]} queries
     {string:string} params
     {string:any} locals
     bool response_sent
-    [fn(ptr<ctx_t>):void!] handlers
+    [fn(ref<ctx_t>):void!] handlers
     int handler_index
 }
 
 type route_t = struct{
     string method
     string path
-    [fn(ptr<ctx_t>):void!] handlers
+    [fn(ref<ctx_t>):void!] handlers
 }
 
 type app_t = struct{
     [route_t] routes
     bool debug_mode
-    ptr<http.server_t> server
-    [fn(ptr<ctx_t>):void!] global_middlewares
+    ref<http.server_t> server
+    [fn(ref<ctx_t>):void!] global_middlewares
 }
 
 type group_t = struct{
     string prefix
-    ptr<app_t> app
-    [fn(ptr<ctx_t>):void!] middlewares
-    ptr<group_t>? parent
+    ref<app_t> app
+    [fn(ref<ctx_t>):void!] middlewares
+    ref<group_t>? parent
 }
 
-fn new():ptr<app_t> {
+fn new():ref<app_t> {
     var app = new app_t(server = http.server())
 
-    app.server.all('/', fn(http.request_t req, ptr<http.response_t> res):void! {
+    app.server.all('/', fn(http.request_t req, ref<http.response_t> res):void! {
         var ctx = new ctx_t(
             req,
             res,
@@ -154,7 +154,7 @@ fn new():ptr<app_t> {
     return app
 }
 
-fn app_t.group(string prefix, ...[fn(ptr<ctx_t>):void!] middlewares):ptr<group_t> {
+fn app_t.group(&self, string prefix, ...[fn(ref<ctx_t>):void!] middlewares):ref<group_t> {
     var group = new group_t(
         prefix = self.normalize_prefix(prefix),
         app = self,
@@ -164,7 +164,7 @@ fn app_t.group(string prefix, ...[fn(ptr<ctx_t>):void!] middlewares):ptr<group_t
     return group
 }
 
-fn app_t.normalize_prefix(string prefix):string {
+fn app_t.normalize_prefix(&self, string prefix):string {
     if prefix == "" {
         return ""
     }
@@ -179,7 +179,7 @@ fn app_t.normalize_prefix(string prefix):string {
     return normalized
 }
 
-fn ctx_t.json(int status, any data):void! {
+fn ctx_t.json(&self, int status, any data):void! {
     if self.response_sent {
         throw errorf("response already sent")
     }
@@ -192,7 +192,7 @@ fn ctx_t.json(int status, any data):void! {
     self.response_sent = true
 }
 
-fn ctx_t.text(int status, string data):void! {
+fn ctx_t.text(&self, int status, string data):void! {
     if self.response_sent {
         throw errorf("response already sent")
     }
@@ -204,18 +204,18 @@ fn ctx_t.text(int status, string data):void! {
     self.response_sent = true
 }
 
-fn ctx_t.status(int code):ptr<ctx_t> {
+fn ctx_t.status(&self, int code):ref<ctx_t> {
     self.res.status = code
     return self
 }
 
-fn ctx_t.param(string key):string {
+fn ctx_t.param(&self, string key):string {
     return self.params[key] catch e {
         return ""
     }
 }
 
-fn ctx_t.query(string key):string {
+fn ctx_t.query(&self, string key):string {
     var list = self.queries[key] catch e {
         return ""
     }
@@ -223,21 +223,21 @@ fn ctx_t.query(string key):string {
     return list[0]
 }
 
-fn ctx_t.set(string key, any value) {
+fn ctx_t.set(&self, string key, any value) {
     self.locals[key] = value
 }
 
-fn ctx_t.get(string key):any {
+fn ctx_t.get(&self, string key):any {
     return self.locals[key] catch e {
         return null
     }
 }
 
-fn ctx_t.next():void! {
+fn ctx_t.next(&self):void! {
     self.handler_index += 1
     if self.handler_index < self.handlers.len() {
         var handler = self.handlers[self.handler_index]
-        handler(self)
+        handler(self) // middle callback
     }
 }
 
@@ -254,38 +254,38 @@ fn parse_path(string path):([string], bool) {
     return (segments, has_params)
 }
 
-fn app_t.get(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.get(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("GET", path, handlers)
 }
 
-fn app_t.post(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.post(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("POST", path, handlers)
 }
 
-fn app_t.put(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.put(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("PUT", path, handlers)
 }
 
-fn app_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.delete(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("DELETE", path, handlers)
 }
 
-fn app_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.patch(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("PATCH", path, handlers)
 }
 
-fn app_t.options(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.options(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("OPTIONS", path, handlers)
 }
 
-fn app_t.all(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.all(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("ALL", path, handlers)
 }
 
-fn app_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.add_route(&self, string method, string path, [fn(ref<ctx_t>):void!] handlers):void {
     var (segments, has_params) = parse_path(path)
     
-    [fn(ptr<ctx_t>):void!] all_handlers = []
+    [fn(ref<ctx_t>):void!] all_handlers = []
     all_handlers.append(self.global_middlewares)
     all_handlers.append(handlers)
 
@@ -298,11 +298,11 @@ fn app_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):
     self.routes.push(route)
 }
 
-fn app_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
+fn app_t.use(&self, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.global_middlewares.append(handlers)
 }
 
-fn app_t.parse_query(string raw_query):{string:[string]} {
+fn app_t.parse_query(&self, string raw_query):{string:[string]} {
     if raw_query == '' {
         return {}
     }
@@ -334,7 +334,7 @@ fn app_t.parse_query(string raw_query):{string:[string]} {
     return result
 }
 
-fn app_t.handle_callback(ptr<ctx_t> ctx):void! {
+fn app_t.handle_callback(&self, ref<ctx_t> ctx):void! {
     var (route, params) = self.match_route(ctx.req) catch e {
         ctx.res.status = STATUS_NOT_FOUND
         ctx.res.send('Not Found')
@@ -356,7 +356,7 @@ fn app_t.handle_callback(ptr<ctx_t> ctx):void! {
     }
 }
 
-fn app_t.match_route(http.request_t req):(route_t, {string:string})! {
+fn app_t.match_route(&self, http.request_t req):(route_t, {string:string})! {
     for route in self.routes {
         if route.method == match_http_method(req.method) || route.method == METHOD_ALL {
             var (matched, params) = self.match_path(route.path, req.path)
@@ -381,7 +381,7 @@ fn match_http_method(u8 method):string {
     }
 }
 
-fn app_t.match_path(string route_path, string request_path):(bool, {string:string}) {
+fn app_t.match_path(&self, string route_path, string request_path):(bool, {string:string}) {
     {string:string} params = {}
     if route_path == '/' {
         return (true, params)
@@ -408,38 +408,38 @@ fn app_t.match_path(string route_path, string request_path):(bool, {string:strin
     return (true, params)
 }
 
-fn group_t.get(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.get(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("GET", path, handlers)
 }
 
-fn group_t.post(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.post(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("POST", path, handlers)
 }
 
-fn group_t.put(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.put(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("PUT", path, handlers)
 }
 
-fn group_t.delete(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.delete(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("DELETE", path, handlers)
 }
 
-fn group_t.patch(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.patch(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("PATCH", path, handlers)
 }
 
-fn group_t.options(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.options(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("OPTIONS", path, handlers)
 }
 
-fn group_t.all(string path, ...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.all(&self, string path, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.add_route("ALL", path, handlers)
 }
 
-fn group_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.add_route(&self, string method, string path, [fn(ref<ctx_t>):void!] handlers):void {
     var full_path = self.prefix + path
     
-    [fn(ptr<ctx_t>):void!] all_handlers = []
+    [fn(ref<ctx_t>):void!] all_handlers = []
     self.collect_parent_middlewares(all_handlers)
     
     all_handlers.append(self.middlewares)
@@ -449,20 +449,20 @@ fn group_t.add_route(string method, string path, [fn(ptr<ctx_t>):void!] handlers
     self.app.add_route(method, full_path, all_handlers)
 }
 
-fn group_t.collect_parent_middlewares([fn(ptr<ctx_t>):void!] middlewares):void {
+fn group_t.collect_parent_middlewares(&self, [fn(ref<ctx_t>):void!] middlewares):void {
     if !(self.parent is null) {
-        var parent = self.parent as ptr<group_t>
+        var parent = self.parent as ref<group_t>
         parent.collect_parent_middlewares(middlewares)
         middlewares.append(parent.middlewares)
     }
 }
 
 // 为 group_t 添加中间件方法
-fn group_t.use(...[fn(ptr<ctx_t>):void!] handlers):void {
+fn group_t.use(&self, ...[fn(ref<ctx_t>):void!] handlers):void {
     self.middlewares.append(handlers)
 }
 
-fn app_t.listen(int port):void! {
+fn app_t.listen(&self, int port):void! {
     println("Server listening on port", port)
     self.server.listen(port)
 }
@@ -470,7 +470,7 @@ fn app_t.listen(int port):void! {
 fn main():void! {
     var app = new()
     
-    app.use(fn(ptr<ctx_t> c):void! {
+    app.use(fn(ref<ctx_t> c):void! {
         c.set('auth_id', 12)
         println('in global ->', c.req.method, c.req.path)
         c.next()
@@ -478,24 +478,24 @@ fn main():void! {
     })
 
     app.get('/test/:id', 
-        fn(ptr<ctx_t> c):void! {
+        fn(ref<ctx_t> c):void! {
             println('in test middleware ->', c.req.method, c.req.path)
             c.next()
             println('<- out test middleware')
         },
-        fn(ptr<ctx_t> c):void! {
+        fn(ref<ctx_t> c):void! {
             println(c.get('auth_id'), c.get('auth_list') is null, c.param('id'))
             c.text(200, 'hello world')
         },
     )
 
-    var v1 = app.group('/api/v1', fn(ptr<ctx_t> c):void! {
+    var v1 = app.group('/api/v1', fn(ref<ctx_t> c):void! {
         println('in v1 middleware ->', c.req.method, c.req.path)
         c.next()
         println('<- out v1 middleware')
     })
 
-    v1.get('/:user', fn(ptr<ctx_t> c):void! {
+    v1.get('/:user', fn(ref<ctx_t> c):void! {
         c.json(200, {
             'message': 'ok',
             'data': {
@@ -507,7 +507,7 @@ fn main():void! {
         })
     })
 
-    v1.use(fn(ptr<ctx_t> c):void! {
+    v1.use(fn(ref<ctx_t> c):void! {
         println('after v1 middleware ->', c.req.method, c.req.path)
         c.next()
         println('<- after v1 middleware')

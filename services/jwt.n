@@ -47,15 +47,18 @@ type jwt_config_t = struct{
 }
 
 // Global JWT configuration
-var jwt_config = jwt_config_t{
-    secret_key: "emoji-api.helloworld202509052341",
-    default_expiry: JWT_DEFAULT_EXPIRY,
-    issuer: JWT_ISSUER,
-    algorithm: JWT_ALGORITHM,
-}
+var jwt_config = jwt_config_t{}
 
 // Initialize JWT configuration
 fn init(string secret_key, int expiry, string issuer):void {
+    // set default
+    jwt_config_t{
+        secret_key: "emoji-api.helloworld202509052341",
+        default_expiry: JWT_DEFAULT_EXPIRY,
+        issuer: JWT_ISSUER,
+        algorithm: JWT_ALGORITHM,
+    } 
+
     jwt_config.secret_key = secret_key
     if expiry > 0 {
         jwt_config.default_expiry = expiry

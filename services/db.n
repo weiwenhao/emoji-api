@@ -1,4 +1,4 @@
-import co.mutex
+import co.mutex.{mutex_t}
 import co
 import db.mysql
 import db.result as db_result
@@ -19,11 +19,11 @@ type pool_config_t = struct{
 }
 
 type pooled_conn_t = struct{
-    ptr<mysql.conn_t> conn
+    ref<mysql.conn_t> conn
     int created_at
     int last_used_at
     bool in_use
-    ptr<db_t> db
+    ref<db_t> db
 }
 
 type db_t = struct{
@@ -35,15 +35,15 @@ type db_t = struct{
     string database
 
     var pool_config = pool_config_t{}
-    [ptr<pooled_conn_t>] idle_connections
-    [ptr<pooled_conn_t>] active_connections
-    mutex.mutex_t pool_mutex
+    [ref<pooled_conn_t>] idle_connections
+    [ref<pooled_conn_t>] active_connections
+    ref<mutex_t> pool_mutex = new mutex_t()
     bool pool_initialized
 }
 
-ptr<db_t>? global_db = null
+ref<db_t>? global_db = null
 
-fn init(string raw_url):ptr<db_t>! {
+fn init(string raw_url):ref<db_t>! {
     // parser url
     var u = url.parse(raw_url)
 
@@ -72,15 +72,15 @@ fn init(string raw_url):ptr<db_t>! {
     return result
 }
 
-fn conn():ptr<pooled_conn_t>! {
-    if global_db is ptr<db_t> g {
+fn conn():ref<pooled_conn_t>! {
+    if global_db is ref<db_t> g {
         return g.conn()
     }
 
     throw errorf('db not initialized')
 }
 
-fn db_t.init_pool()! {
+fn db_t.init_pool(&self)! {
     self.pool_initialized = true
     
     // 创建最小连接数
@@ -90,7 +90,7 @@ fn db_t.init_pool()! {
     }
 }
 
-fn db_t.create_connection():ptr<pooled_conn_t>! {
+fn db_t.create_connection(&self):ref<pooled_conn_t>! {
     var mysql_conn = mysql.connect(self.host, self.username, self.password, self.database)
     var now = time.unix()
     
@@ -103,7 +103,7 @@ fn db_t.create_connection():ptr<pooled_conn_t>! {
     )
 }
 
-fn db_t.conn():ptr<pooled_conn_t>! {
+fn db_t.conn(&self):ref<pooled_conn_t>! {
     if !self.pool_initialized {
         throw errorf("connection pool not initialized")
     }
@@ -148,7 +148,7 @@ fn db_t.conn():ptr<pooled_conn_t>! {
     throw errorf('unreacheable')
 }
 
-fn pooled_conn_t.query(string sql, ...[any] args):db_result.query_t! {
+fn pooled_conn_t.query(&self, string sql, ...[any] args):db_result.query_t! {
     var stmt = self.conn.prepare(sql)
     var result = stmt.query(...args)
 
@@ -158,13 +158,13 @@ fn pooled_conn_t.query(string sql, ...[any] args):db_result.query_t! {
     return result
 }
 
-fn pooled_conn_t.release() {
-    if global_db is ptr<db_t> g {
+fn pooled_conn_t.release(&self) {
+    if global_db is ref<db_t> g {
         g.release_connection(self)
     }
 }
 
-fn db_t.release_connection(ptr<pooled_conn_t> conn) {
+fn db_t.release_connection(&self, ref<pooled_conn_t> conn) {
     self.pool_mutex.lock()
 
     for int i = 0; i < self.active_connections.len(); i+=1 {
@@ -191,7 +191,7 @@ fn db_t.release_connection(ptr<pooled_conn_t> conn) {
     self.pool_mutex.unlock()
 }
 
-fn pooled_conn_t.execute(string sql, ...[any] args):db_result.execute_t! {
+fn pooled_conn_t.execute(&self, string sql, ...[any] args):db_result.execute_t! {
     var stmt = self.conn.prepare(sql)
     var result = stmt.execute(...args)
     
@@ -201,7 +201,7 @@ fn pooled_conn_t.execute(string sql, ...[any] args):db_result.execute_t! {
     return result
 }
 
-fn db_t.cleanup_idle_connections() {
+fn db_t.cleanup_idle_connections(&self) {
     self.pool_mutex.lock()
     
     var now = time.unix()
@@ -234,7 +234,7 @@ fn db_t.cleanup_idle_connections() {
     self.pool_mutex.unlock()
 }
 
-fn db_t.close_all_connections() {
+fn db_t.close_all_connections(&self) {
     self.pool_mutex.lock()
     
     // 关闭所有空闲连接

@@ -1,12 +1,16 @@
 import emoji.services.api
 import emoji.services.config
 import emoji.services.db
+import emoji.services.jwt
 import emoji.router
 import fmt
 
 fn main() {
     // read config
     var c = config.load('./config.json')
+
+    // init jwt
+    jwt.init('emoji20260225', 7200, 'emoji')
 
     // init db
     db.init(fmt.sprintf('mysql://%s:%s@%s/%s', c.db_username, c.db_password, c.db_host, c.db_database))

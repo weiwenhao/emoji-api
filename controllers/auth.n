@@ -6,7 +6,7 @@ import emoji.services.jwt
 import emoji.services.mail
 
 
-fn register(ptr<api.ctx_t> ctx):void! {
+fn register(ref<api.ctx_t> ctx):void! {
     type register_t = struct{
         string nickname
         string email
@@ -38,7 +38,7 @@ fn register(ptr<api.ctx_t> ctx):void! {
 }
 
 
-fn captcha(ptr<api.ctx_t> ctx):void! {
+fn captcha(ref<api.ctx_t> ctx):void! {
     type captcha_t = struct{
         string email
     }
@@ -57,7 +57,7 @@ fn captcha(ptr<api.ctx_t> ctx):void! {
     return ctx.json(200, {'message': 'captcha sent'})
 }
 
-fn login(ptr<api.ctx_t> ctx):void! {
+fn login(ref<api.ctx_t> ctx):void! {
     type login_t = struct{
         string email
         string password
@@ -80,7 +80,7 @@ fn login(ptr<api.ctx_t> ctx):void! {
     return ctx.json(200, {'token': token})
 }
 
-fn show(ptr<api.ctx_t> ctx):void! {
+fn show(ref<api.ctx_t> ctx):void! {
     if ctx.get('auth_id') is null {
         return ctx.json(500, {'error': 'invalid user'})
     }

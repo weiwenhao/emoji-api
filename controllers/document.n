@@ -3,7 +3,7 @@ import emoji.services.db
 import emoji.models.document
 import json
 
-fn index(ptr<api.ctx_t> ctx):void! {
+fn index(ref<api.ctx_t> ctx):void! {
     var user_id = ctx.get('auth_id') as int catch e {
         return ctx.json(401, {'error': 'unauthorized'})
     }
@@ -23,7 +23,7 @@ type body_t = struct{
     {string:any} layout
 }
 
-fn create(ptr<api.ctx_t> ctx):void! {
+fn create(ref<api.ctx_t> ctx):void! {
     var body = json.deserialize<body_t>(ctx.req.body) catch e {
         return ctx.json(400, {'error': 'invalid payload'})
     }
@@ -40,7 +40,7 @@ fn create(ptr<api.ctx_t> ctx):void! {
     return ctx.json(200, doc)
 }
 
-fn update(ptr<api.ctx_t> ctx):void! {
+fn update(ref<api.ctx_t> ctx):void! {
     var body = json.deserialize<body_t>(ctx.req.body) catch e {
         return ctx.json(400, {'error': 'invalid payload'})
     }

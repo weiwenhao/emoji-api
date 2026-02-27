@@ -1,7 +1,7 @@
 import emoji.services.api
 import emoji.services.jwt
 
-fn handle(ptr<api.ctx_t> c):void! {
+fn handle(ref<api.ctx_t> c):void! {
     var authorization = c.req.headers['Authorization'] catch e {
         return c.json(401, {'error': 'Unauthorized'})
     }

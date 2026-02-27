@@ -4,8 +4,8 @@ import emoji.controllers.auth
 import emoji.middlewares.auth as middleware_auth
 import http
 
-fn register(ptr<api.app_t> app) {
-    app.get('/ok', fn(ptr<api.ctx_t> ctx):void! {
+fn register(ref<api.app_t> app) {
+    app.get('/ok', fn(ref<api.ctx_t> ctx):void! {
         ctx.text(200, 'ok')
     })
 
