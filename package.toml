@@ -1,9 +1,9 @@
 name = "emoji"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["weiwenhao <wwhacker@qq.com>"]
 license = "MIT"
 type = "lib"
-nature = "0.7.2"
+nature = "0.7.4"
 
 [links]
 
